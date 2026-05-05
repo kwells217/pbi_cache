@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Power BI Catalog</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --surface: #111827; --surface2: #1a2235;
+    --border: #1e2d45; --accent: #f0b429; --accent2: #3b82f6;
+    --text: #e2e8f0; --muted: #64748b; --success: #10b981; --error: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif; min-height: 100vh;
+    background-image: radial-gradient(ellipse at 20% 0%, #1a2d5a22 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 100%, #f0b42911 0%, transparent 60%);
+  }
+  header {
+    border-bottom: 1px solid var(--border); padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(17,24,39,0.8); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; color: var(--accent); }
+  .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), #f97316); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .status-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); }
+  .status-badge.connected { border-color: var(--success); color: var(--success); }
+  main { max-width: 1400px; margin: 0 auto; padding: 32px; }
+  .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; max-width: 600px; margin: 40px auto; }
+  .auth-card h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .auth-card p { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+  .field-group { margin-bottom: 16px; }
+  label { display: block; font-size: 12px; font-family: 'IBM Plex Mono', monospace; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+  input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; font-family: 'IBM Plex Sans', sans-serif; outline: none; transition: border-color 0.2s; }
+  input:focus { border-color: var(--accent2); }
+  input::placeholder { color: var(--muted); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-family: 'IBM Plex Sans', sans-serif; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #f97316); color: #0a0e1a; }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent2); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+  .error-msg { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; padding: 14px 16px; color: #fca5a5; font-size: 13px; margin-top: 16px; display: none; }
+  .dashboard { display: none; }
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), transparent); }
+  .stat-label { font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 28px; font-weight: 600; margin-top: 6px; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .toolbar input { flex: 1; min-width: 200px; }
+  .toolbar select { width: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; overflow-x: auto; }
+  .table-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
+  .tag { font-size: 11px; font-family: 'IBM Plex Mono', monospace; padding: 2px 8px; border-radius: 4px; background: var(--surface2); color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; min-width: 900px; }
+  th { text-align: left; padding: 10px 16px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; }
+  td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(59,130,246,0.04); }
+  .cell-mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .cell-muted { color: var(--muted); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .pill-blue { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .pill-green { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+  .pill-yellow { background: rgba(240,180,41,0.15); color: #fcd34d; }
+  .pill-gray { background: rgba(100,116,139,0.15); color: var(--muted); }
+  .pill-red { background: rgba(239,68,68,0.15); color: #fca5a5; }
+  .copy-btn { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 11px; padding: 2px 8px; cursor: pointer; transition: all 0.15s; font-family: 'IBM Plex Mono', monospace; }
+  .copy-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--muted); gap: 14px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .spinner-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
+  .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 20px; cursor: pointer; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .progress-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; display: none; }
+  .progress-label { font-size: 13px; color: var(--muted); margin-bottom: 10px; font-family: 'IBM Plex Mono', monospace; }
+  .progress-bar { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #f97316); border-radius: 4px; transition: width 0.4s; width: 0%; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-icon">⚡</div>PBI Catalog</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="status-badge" id="connStatus">Not connected</span>
+    <button class="btn btn-secondary" id="refreshBtn" style="display:none;font-size:12px;padding:6px 12px;" onclick="fetchAll(true)">↻ Refresh</button>
+    <button class="btn btn-secondary" id="disconnectBtn" style="display:none;font-size:12px;padding:6px 12px;" onclick="disconnect()">Disconnect</button>
+  </div>
+</header>
+
+<main>
+
+<div id="authPanel" class="auth-card">
+  <h2>Connect to Power BI Service</h2>
+  <p>Click connect to load your Power BI catalog.</p>
+  <div class="error-msg" id="authError"></div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="connect()">⚡ Connect & Catalog</button>
+  </div>
+</div>
+
+<div id="dashboard" class="dashboard">
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label" id="progressLabel">Loading...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('reports')">Reports</div>
+    <div class="tab" onclick="switchTab('datasets')">Datasets & Connections</div>
+    <div class="tab" onclick="switchTab('workspaces')">Workspaces</div>
+    <div class="tab" onclick="switchTab('connmap')">Connection Map</div>
+  </div>
+
+  <div class="tab-content active" id="tab-reports">
+    <div class="toolbar">
+      <input type="text" placeholder="Search reports..." oninput="filterTable('reportTable', this.value)">
+      <select onchange="filterByWs('reportTable', this.value)" id="wsFilterReport"><option value="">All Workspaces</option></select>
+      <button class="btn btn-secondary" onclick="exportCSV('reportTable','reports')">↓ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">📊 Reports <span class="tag" id="reportCount">0</span></div>
+      <div id="reportTableWrap"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-datasets">
+    <div class="toolbar">
+      <input type="text" placeholder="Search datasets..." oninput="filterTable('dsTable', this.value)">
+      <select onchange="filterByWs('dsTable', this.value)" id="wsFilterDs"><option value="">All Workspaces</option></select>
+      <button class="btn btn-secondary" onclick="exportCSV('dsTable','datasets')">↓ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">🔌 Datasets & Connection Strings <span class="tag" id="dsCount">0</span></div>
+      <div id="dsTableWrap"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-connmap">
+    <div class="toolbar">
+      <input type="text" placeholder="Search connection strings or source types..." oninput="filterTable('connTable', this.value)">
+      <button class="btn btn-secondary" onclick="exportCSV('connTable','connection-map')">↓ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">🔗 Connection String → Semantic Model Map <span class="tag" id="connCount">0</span></div>
+      <div id="connTableWrap"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-workspaces">
+    <div class="toolbar">
+      <button class="btn btn-secondary" onclick="exportCSV('wsTable','workspaces')">↓ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">🗂 Workspaces <span class="tag" id="wsCount">0</span></div>
+      <div id="wsTableWrap"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+let FUNC_URL = '', FUNC_KEY = '';
+let allReports = [], allDatasets = [], allWorkspaces = [];
+
+function getFuncUrl(action, params = {}) {
+  const url = new URL(FUNC_URL);
+  url.searchParams.set('action', action);
+  if (FUNC_KEY) url.searchParams.set('code', FUNC_KEY);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  return url.toString();
+}
+
+async function proxyGet(action, params = {}) {
+  const res = await fetch(getFuncUrl(action, params));
+  if (!res.ok) throw new Error(`Function error ${res.status}`);
+  return res.json();
+}
+
+async function connect() {
+  // -------------------------------------------------------
+  // PASTE YOUR AZURE FUNCTION URL BETWEEN THE QUOTES BELOW
+  FUNC_URL = 'YOUR_FUNCTION_URL_HERE';
+  // PASTE YOUR FUNCTION KEY BETWEEN THE QUOTES BELOW
+  FUNC_KEY = 'YOUR_FUNCTION_KEY_HERE';
+  // -------------------------------------------------------
+  const errEl = document.getElementById('authError');
+  errEl.style.display = 'none';
+  if (!FUNC_URL) { errEl.textContent = 'Please enter your Azure Function URL.'; errEl.style.display = 'block'; return; }
+  try {
+    await proxyGet('workspaces');
+    await fetchAll();
+  } catch (e) {
+    errEl.textContent = 'Connection failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function setProgress(label, pct) {
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('progressLabel').textContent = label;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progressWrap').style.display = 'none';
+}
+
+let allConnections = [];
+let cachedCatalog = null; // browser-level memory cache
+
+async function fetchAll(forceRefresh = false) {
+  document.getElementById('authPanel').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('connStatus').className = 'status-badge connected';
+  document.getElementById('connStatus').textContent = 'Connected';
+  document.getElementById('disconnectBtn').style.display = 'inline-flex';
+  document.getElementById('refreshBtn').style.display = 'inline-flex';
+
+  // Use browser memory cache if available and not forcing refresh
+  if (cachedCatalog && !forceRefresh) {
+    ({ allWorkspaces, allReports, allDatasets, allConnections } = cachedCatalog);
+    renderAll();
+    return;
+  }
+
+  showLoading('reportTableWrap'); showLoading('dsTableWrap'); showLoading('wsTableWrap');
+
+  try {
+    setProgress('Loading catalog...', 20);
+    const action = forceRefresh ? 'refresh' : 'catalog';
+    const data = await proxyGet(action);
+
+    allWorkspaces = data.workspaces || [];
+    allReports = data.reports || [];
+    allDatasets = data.datasets || [];
+    allConnections = data.connections || [];
+
+    // Store in browser memory cache
+    cachedCatalog = { allWorkspaces, allReports, allDatasets, allConnections };
+
+    const source = data.source === 'cache' ? '✓ Cached' : '✓ Live';
+    document.getElementById('connStatus').textContent = source;
+
+    setProgress('Rendering...', 100);
+    setTimeout(() => { hideProgress(); renderAll(); }, 300);
+
+  } catch (e) {
+    hideProgress();
+    ['reportTableWrap', 'dsTableWrap', 'wsTableWrap'].forEach(id => {
+      document.getElementById(id).innerHTML = `<div class="empty">❌ ${e.message}</div>`;
+    });
+  }
+}
+
+function showLoading(id) {
+  document.getElementById(id).innerHTML = `<div class="loading"><div class="spinner"></div><span>Loading...</span></div>`;
+}
+
+function switchTab(name) {
+  const tabs = ['reports', 'datasets', 'workspaces', 'connmap'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function renderAll() { renderStats(); renderReports(); renderDatasets(); renderWorkspaces(); renderConnMap(); populateWsFilters(); }
+
+function renderStats() {
+  const totalSources = allDatasets.reduce((a, d) => a + (d._sources || []).length, 0);
+  const types = new Set(allDatasets.flatMap(d => (d._sources || []).map(s => s.datasourceType)));
+  const scheduledCount = allDatasets.filter(d => d._schedule && d._schedule.enabled).length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Workspaces</div><div class="stat-value">${allWorkspaces.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Reports</div><div class="stat-value">${allReports.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Datasets</div><div class="stat-value">${allDatasets.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Data Sources</div><div class="stat-value">${totalSources}</div></div>
+    <div class="stat-card"><div class="stat-label">Source Types</div><div class="stat-value">${types.size}</div></div>
+    <div class="stat-card"><div class="stat-label">Scheduled Refreshes</div><div class="stat-value">${scheduledCount}</div></div>`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '<span class="cell-muted">—</span>';
+  const d = new Date(dateStr);
+  return `<span class="cell-mono" style="font-size:11px;">${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+}
+
+function formatSchedule(schedule) {
+  if (!schedule || !schedule.enabled) return '<span class="pill pill-gray">No schedule</span>';
+  const days = (schedule.days || []).join(', ');
+  const times = (schedule.times || []).join(', ');
+  const tz = schedule.localTimeZoneId || '';
+  return `<span class="pill pill-green" title="${days} at ${times} (${tz})">Scheduled ✓</span>`;
+}
+
+function formatOwner(report) {
+  const owner = report.createdBy || report.modifiedBy || null;
+  if (!owner) return '<span class="cell-muted">—</span>';
+  return `<span style="font-size:12px;">${owner}</span>`;
+}
+
+function renderReports() {
+  const rows = allReports.map(r => `
+    <tr data-ws="${r._workspace}" data-search="${(r.name + r._workspace + (r.createdBy || '')).toLowerCase()}">
+      <td><strong>${r.name}</strong></td>
+      <td class="cell-muted">${r._workspace}</td>
+      <td>${formatOwner(r)}</td>
+      <td>${formatDate(r._lastRefresh ? r._lastRefresh.endTime : null)}</td>
+      <td>${formatSchedule(r._schedule)}</td>
+      <td>${r.datasetId ? `<span class="pill pill-blue">${r.datasetId.slice(0, 8)}…</span>` : '<span class="pill pill-gray">—</span>'}</td>
+      <td><a href="${r.webUrl || '#'}" target="_blank" style="color:var(--accent2);font-size:12px;">${r.webUrl ? 'Open ↗' : '—'}</a></td>
+      <td><button class="copy-btn" onclick="copy('${r.id}')">Copy ID</button></td>
+    </tr>`).join('');
+  document.getElementById('reportCount').textContent = allReports.length;
+  document.getElementById('reportTableWrap').innerHTML = `
+    <table id="reportTable">
+      <thead><tr>
+        <th>Report Name</th><th>Workspace</th><th>Owner</th>
+        <th>Last Refreshed</th><th>Refresh Schedule</th>
+        <th>Dataset</th><th>URL</th><th></th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" class="empty">No reports found</td></tr>'}</tbody>
+    </table>`;
+}
+
+function connStr(src) {
+  if (!src.connectionDetails) return '—';
+  const d = src.connectionDetails;
+  const parts = [];
+  if (d.server) parts.push(`Server=${d.server}`);
+  if (d.database) parts.push(`Database=${d.database}`);
+  if (d.url) parts.push(`URL=${d.url}`);
+  if (d.path) parts.push(`Path=${d.path}`);
+  if (d.account) parts.push(`Account=${d.account}`);
+  return parts.join('; ') || JSON.stringify(d);
+}
+
+function displayName(src) {
+  // First try to match against managed connections / gateway datasources by connection details
+  if (src.connectionDetails && allConnections.length > 0) {
+    const srcServer = src.connectionDetails.server;
+    const srcDb = src.connectionDetails.database;
+    const srcUrl = src.connectionDetails.url;
+    const match = allConnections.find(c => {
+      if (!c.connectionDetails) return false;
+      const cd = typeof c.connectionDetails === 'string' ? JSON.parse(c.connectionDetails) : c.connectionDetails;
+      if (srcServer && cd.server && cd.server.toLowerCase() === srcServer.toLowerCase()) {
+        if (srcDb && cd.database) return cd.database.toLowerCase() === srcDb.toLowerCase();
+        return true;
+      }
+      if (srcUrl && cd.url && cd.url.toLowerCase() === srcUrl.toLowerCase()) return true;
+      return false;
+    });
+    if (match && match.displayName) return match.displayName;
+  }
+  // Fallback: construct from connection details
+  if (!src.connectionDetails) return '—';
+  const d = src.connectionDetails;
+  if (d.database && d.server) return `${d.database} on ${d.server}`;
+  if (d.database) return d.database;
+  if (d.server) return d.server;
+  if (d.url) { try { return new URL(d.url).hostname; } catch { return d.url; } }
+  if (d.path) return d.path.split('\\').pop() || d.path;
+  if (d.account) return d.account;
+  return '—';
+}
+
+function dsOwner(ds) {
+  return ds.configuredBy || ds.createdBy || '—';
+}
+
+function dsTypePill(t) {
+  const map = { Sql: 'pill-blue', AnalysisServices: 'pill-yellow', OData: 'pill-green', Snowflake: 'pill-blue', AzureSqlDatabase: 'pill-blue', File: 'pill-gray' };
+  return `<span class="pill ${map[t] || 'pill-gray'}">${t || 'Unknown'}</span>`;
+}
+
+function renderDatasets() {
+  const rows = [];
+  allDatasets.forEach(ds => {
+    const owner = dsOwner(ds);
+    if (!ds._sources || ds._sources.length === 0) {
+      rows.push(`<tr data-ws="${ds._workspace}" data-search="${(ds.name + ds._workspace + owner).toLowerCase()}">
+        <td><strong>${ds.name}</strong></td>
+        <td class="cell-muted">${ds._workspace}</td>
+        <td style="font-size:12px;color:var(--muted);">${owner}</td>
+        <td class="cell-mono">${ds.id}</td>
+        <td><span class="pill pill-gray">No sources</span></td>
+        <td class="cell-muted">—</td>
+        <td class="cell-muted">—</td>
+        <td></td></tr>`);
+    } else {
+      ds._sources.forEach(src => {
+        const cs = connStr(src);
+        const dn = displayName(src);
+        rows.push(`<tr data-ws="${ds._workspace}" data-search="${(ds.name + ds._workspace + cs + dn + owner).toLowerCase()}">
+          <td><strong>${ds.name}</strong></td>
+          <td class="cell-muted">${ds._workspace}</td>
+          <td style="font-size:12px;color:var(--muted);">${owner}</td>
+          <td class="cell-mono">${ds.id}</td>
+          <td>${dsTypePill(src.datasourceType)}</td>
+          <td style="font-size:12px;font-weight:500;color:var(--text);">${dn}</td>
+          <td class="cell-mono" style="font-size:11px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cs}">${cs}</td>
+          <td>${cs !== '—' ? `<button class="copy-btn" onclick="copy(\`${cs.replace(/`/g, "'")}\`)">Copy</button>` : ''}</td>
+        </tr>`);
+      });
+    }
+  });
+  document.getElementById('dsCount').textContent = allDatasets.length;
+  document.getElementById('dsTableWrap').innerHTML = `
+    <table id="dsTable">
+      <thead><tr>
+        <th>Dataset</th><th>Workspace</th><th>Owner</th>
+        <th>Dataset ID</th><th>Type</th><th>Display Name</th><th>Connection String</th><th></th>
+      </tr></thead>
+      <tbody>${rows.join('') || '<tr><td colspan="8" class="empty">No datasets found</td></tr>'}</tbody>
+    </table>`;
+}
+
+function renderWorkspaces() {
+  const rows = allWorkspaces.map(w => `
+    <tr data-search="${w.name.toLowerCase()}">
+      <td><strong>${w.name}</strong></td><td class="cell-mono">${w.id}</td><td>${w.type || '—'}</td>
+      <td>${allReports.filter(r => r._workspaceId === w.id).length}</td>
+      <td>${allDatasets.filter(d => d._workspaceId === w.id).length}</td>
+      <td><button class="copy-btn" onclick="copy('${w.id}')">Copy ID</button></td>
+    </tr>`).join('');
+  document.getElementById('wsCount').textContent = allWorkspaces.length;
+  document.getElementById('wsTableWrap').innerHTML = `
+    <table id="wsTable">
+      <thead><tr><th>Workspace</th><th>ID</th><th>Type</th><th>Reports</th><th>Datasets</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" class="empty">No workspaces found</td></tr>'}</tbody>
+    </table>`;
+}
+
+function renderConnMap() {
+  const connMap = {};
+
+  allDatasets.forEach(ds => {
+    (ds._sources || []).forEach(src => {
+      const cs = connStr(src);
+      const dn = displayName(src);
+      const type = src.datasourceType || 'Unknown';
+      const key = `${type}||${cs}`;
+      if (!connMap[key]) {
+        connMap[key] = { type, connectionString: cs, displayName: dn, datasets: [] };
+      }
+      const reports = allReports.filter(r => r.datasetId === ds.id);
+      connMap[key].datasets.push({
+        name: ds.name,
+        workspace: ds._workspace,
+        owner: dsOwner(ds),
+        id: ds.id,
+        reports
+      });
+    });
+  });
+
+  const entries = Object.values(connMap);
+  document.getElementById('connCount').textContent = entries.length;
+
+  if (entries.length === 0) {
+    document.getElementById('connTableWrap').innerHTML = '<div class="empty">No connection data found</div>';
+    return;
+  }
+
+  const rows = entries.map((entry) => {
+    const modelList = entry.datasets.map(ds => {
+      const reportNames = ds.reports.map(r => {
+        const owner = r.createdBy ? `<span style="font-size:10px;color:var(--muted);margin-left:6px;">${r.createdBy}</span>` : '';
+        return `<div style="margin:2px 0;"><span class="pill pill-blue">${r.name}</span>${owner}</div>`;
+      }).join('');
+      return `
+        <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="font-weight:500;font-size:13px;">📦 ${ds.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin:2px 0;">${ds.workspace} ${ds.owner !== '—' ? `· <span style="color:var(--accent2);">${ds.owner}</span>` : ''}</div>
+          <div style="margin-top:6px;">${reportNames || '<span style="color:var(--muted);font-size:11px;">No reports</span>'}</div>
+        </div>`;
+    }).join('');
+
+    const cs = entry.connectionString;
+    const dn = entry.displayName;
+    const owners = [...new Set(entry.datasets.map(d => d.owner).filter(o => o !== '—'))].join(', ') || '—';
+    const searchVal = `${entry.type} ${cs} ${dn} ${owners} ${entry.datasets.map(d => d.name + ' ' + d.workspace).join(' ')}`.toLowerCase();
+
+    return `<tr data-search="${searchVal}">
+      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${dsTypePill(entry.type)}</td>
+      <td style="font-size:12px;font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${dn}">${dn}</td>
+      <td class="cell-mono" style="font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cs}">${cs}</td>
+      <td><button class="copy-btn" onclick="copy(\`${cs.replace(/`/g, "'")}\`)">Copy</button></td>
+      <td><span class="pill pill-yellow">${entry.datasets.length} model${entry.datasets.length !== 1 ? 's' : ''}</span></td>
+      <td><span class="pill pill-blue">${entry.datasets.reduce((a, d) => a + d.reports.length, 0)} report${entry.datasets.reduce((a, d) => a + d.reports.length, 0) !== 1 ? 's' : ''}</span></td>
+      <td>
+        <details>
+          <summary style="font-size:12px;color:var(--accent2);list-style:none;cursor:pointer;">View details ↓</summary>
+          <div style="margin-top:8px;padding:4px 0;">${modelList}</div>
+        </details>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('connTableWrap').innerHTML = `
+    <table id="connTable">
+      <thead><tr>
+        <th style="width:90px;">Source Type</th>
+        <th>Display Name</th>
+        <th>Connection String</th>
+        <th></th>
+        <th>Semantic Models</th>
+        <th>Reports</th>
+        <th>Details</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function populateWsFilters() {
+  const opts = allWorkspaces.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+  document.getElementById('wsFilterReport').innerHTML = '<option value="">All Workspaces</option>' + opts;
+  document.getElementById('wsFilterDs').innerHTML = '<option value="">All Workspaces</option>' + opts;
+}
+
+function filterTable(tableId, search) {
+  document.querySelectorAll(`#${tableId} tbody tr`).forEach(tr => {
+    tr.style.display = (tr.dataset.search || '').includes(search.toLowerCase()) ? '' : 'none';
+  });
+}
+
+function filterByWs(tableId, ws) {
+  document.querySelectorAll(`#${tableId} tbody tr`).forEach(tr => {
+    tr.style.display = (!ws || tr.dataset.ws === ws) ? '' : 'none';
+  });
+}
+
+function copy(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const el = event.target; el.textContent = '✓ Copied';
+    setTimeout(() => el.textContent = 'Copy', 1200);
+  });
+}
+
+function exportCSV(tableId, name) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const rows = [...table.querySelectorAll('tr')].map(tr =>
+    [...tr.querySelectorAll('th,td')].map(c => `"${c.innerText.replace(/"/g, '""')}"`).join(',')
+  );
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' }));
+  a.download = `powerbi_${name}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+}
+
+function disconnect() {
+  allReports = []; allDatasets = []; allWorkspaces = [];
+  document.getElementById('authPanel').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('connStatus').className = 'status-badge';
+  document.getElementById('connStatus').textContent = 'Not connected';
+  document.getElementById('disconnectBtn').style.display = 'none';
+  document.getElementById('refreshBtn').style.display = 'none';
+}
+
+function loadDemo() {
+  allWorkspaces = [{ id: 'ws-001', name: 'Finance Analytics', type: 'Group' }, { id: 'ws-002', name: 'Marketing Insights', type: 'Group' }, { id: 'ws-003', name: 'Operations', type: 'Personal' }];
+  allReports = [
+    { id: 'rpt-001', name: 'Monthly P&L Dashboard', _workspace: 'Finance Analytics', _workspaceId: 'ws-001', datasetId: 'ds-001', webUrl: '#', createdBy: 'john.smith@company.com', _lastRefresh: { endTime: '2026-05-01T06:00:00Z', status: 'Completed' }, _schedule: { enabled: true, days: ['Monday', 'Wednesday', 'Friday'], times: ['06:00'], localTimeZoneId: 'UTC' } },
+    { id: 'rpt-002', name: 'Budget vs Actuals', _workspace: 'Finance Analytics', _workspaceId: 'ws-001', datasetId: 'ds-001', webUrl: '#', createdBy: 'sarah.jones@company.com', _lastRefresh: { endTime: '2026-05-01T06:00:00Z', status: 'Completed' }, _schedule: { enabled: true, days: ['Daily'], times: ['08:00'], localTimeZoneId: 'UTC' } },
+    { id: 'rpt-003', name: 'Campaign Performance', _workspace: 'Marketing Insights', _workspaceId: 'ws-002', datasetId: 'ds-002', webUrl: '#', createdBy: 'mike.taylor@company.com', _lastRefresh: null, _schedule: { enabled: false } },
+    { id: 'rpt-004', name: 'Warehouse KPIs', _workspace: 'Operations', _workspaceId: 'ws-003', datasetId: 'ds-004', webUrl: '', createdBy: 'lisa.chen@company.com', _lastRefresh: { endTime: '2026-04-30T12:00:00Z', status: 'Completed' }, _schedule: { enabled: true, days: ['Sunday'], times: ['00:00'], localTimeZoneId: 'UTC' } },
+  ];
+  allDatasets = [
+    { id: 'ds-001', name: 'Finance Data Model', _workspace: 'Finance Analytics', _workspaceId: 'ws-001', _sources: [{ datasourceType: 'Sql', connectionDetails: { server: 'fin-sql.database.windows.net', database: 'FinanceDB' } }] },
+    { id: 'ds-002', name: 'Marketing Dataset', _workspace: 'Marketing Insights', _workspaceId: 'ws-002', _sources: [{ datasourceType: 'Snowflake', connectionDetails: { server: 'acme.snowflakecomputing.com', database: 'MARKETING' } }] },
+    { id: 'ds-004', name: 'Ops Warehouse', _workspace: 'Operations', _workspaceId: 'ws-003', _sources: [{ datasourceType: 'Sql', connectionDetails: { server: 'ops-db.internal', database: 'Warehouse' } }] },
+  ];
+  document.getElementById('authPanel').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('connStatus').className = 'status-badge connected';
+  document.getElementById('connStatus').textContent = '⭐ Demo Mode';
+  document.getElementById('disconnectBtn').style.display = 'inline-flex';
+  renderAll();
+}
+</script>
+</body>
+</html>

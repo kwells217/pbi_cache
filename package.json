@@ -1,0 +1,16 @@
+{
+  "name": "pbi-catalog-proxy",
+  "version": "2.0.0",
+  "description": "Azure Function proxy for Power BI Catalog Tool with caching",
+  "main": "index.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "@azure/storage-blob": "^12.17.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
