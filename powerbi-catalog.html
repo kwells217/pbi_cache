@@ -123,6 +123,7 @@
     <div class="tab" onclick="switchTab('datasets')">Datasets & Connections</div>
     <div class="tab" onclick="switchTab('workspaces')">Workspaces</div>
     <div class="tab" onclick="switchTab('connmap')">Connection Map</div>
+    <div class="tab" onclick="switchTab('permissions')">Permissions</div>
   </div>
 
   <div class="tab-content active" id="tab-reports">
@@ -169,13 +170,35 @@
       <div id="wsTableWrap"></div>
     </div>
   </div>
+
+  <div class="tab-content" id="tab-permissions">
+    <div class="toolbar">
+      <input type="text" placeholder="Search by name, item or workspace..." oninput="filterTable('permTable', this.value)">
+      <select onchange="filterTable2('permTable', this.value, 'type')">
+        <option value="">All Types</option>
+        <option value="workspace">Workspace</option>
+        <option value="report">Report</option>
+        <option value="dataset">Dataset</option>
+      </select>
+      <select onchange="filterTable2('permTable', this.value, 'access')">
+        <option value="">All Access</option>
+        <option value="direct">Direct</option>
+        <option value="group">Group</option>
+      </select>
+      <button class="btn btn-secondary" onclick="exportCSV('permTable','permissions')">↓ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">🔐 Item Level Permissions <span class="tag" id="permCount">0</span></div>
+      <div id="permTableWrap"></div>
+    </div>
+  </div>
 </div>
 
 </main>
 
 <script>
 let FUNC_URL = '', FUNC_KEY = '';
-let allReports = [], allDatasets = [], allWorkspaces = [];
+let allReports = [], allDatasets = [], allWorkspaces = [], allPermissions = [];
 
 function getFuncUrl(action, params = {}) {
   const url = new URL(FUNC_URL);
@@ -249,6 +272,7 @@ async function fetchAll(forceRefresh = false) {
     allReports = data.reports || [];
     allDatasets = data.datasets || [];
     allConnections = data.connections || [];
+    allPermissions = data.permissions || [];
 
     // Store in browser memory cache
     cachedCatalog = { allWorkspaces, allReports, allDatasets, allConnections };
@@ -272,13 +296,13 @@ function showLoading(id) {
 }
 
 function switchTab(name) {
-  const tabs = ['reports', 'datasets', 'workspaces', 'connmap'];
+  const tabs = ['reports', 'datasets', 'workspaces', 'connmap', 'permissions'];
   document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === name));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
 }
 
-function renderAll() { renderStats(); renderReports(); renderDatasets(); renderWorkspaces(); renderConnMap(); populateWsFilters(); }
+function renderAll() { renderStats(); renderReports(); renderDatasets(); renderWorkspaces(); renderConnMap(); renderPermissions(); populateWsFilters(); }
 
 function renderStats() {
   const totalSources = allDatasets.reduce((a, d) => a + (d._sources || []).length, 0);
@@ -313,6 +337,16 @@ function formatOwner(report) {
   return `<span style="font-size:12px;">${owner}</span>`;
 }
 
+function formatRefreshStatus(report) {
+  if (!report._schedule || !report._schedule.enabled) return '<span class="cell-muted">—</span>';
+  if (!report._lastRefresh) return '<span class="cell-muted">—</span>';
+  const status = (report._lastRefresh.status || '').toLowerCase();
+  if (status === 'completed') return '<span title="Last refresh succeeded" style="color:#10b981;font-size:16px;">✓</span>';
+  if (status === 'failed') return '<span title="Last refresh failed" style="color:#ef4444;font-size:16px;">✗</span>';
+  if (status === 'inprogress') return '<span title="Refresh in progress" style="color:#f0b429;font-size:14px;">↻</span>';
+  return '<span class="cell-muted">—</span>';
+}
+
 function renderReports() {
   const rows = allReports.map(r => `
     <tr data-ws="${r._workspace}" data-search="${(r.name + r._workspace + (r.createdBy || '')).toLowerCase()}">
@@ -321,6 +355,7 @@ function renderReports() {
       <td>${formatOwner(r)}</td>
       <td>${formatDate(r._lastRefresh ? r._lastRefresh.endTime : null)}</td>
       <td>${formatSchedule(r._schedule)}</td>
+      <td style="text-align:center;">${formatRefreshStatus(r)}</td>
       <td>${r.datasetId ? `<span class="pill pill-blue">${r.datasetId.slice(0, 8)}…</span>` : '<span class="pill pill-gray">—</span>'}</td>
       <td><a href="${r.webUrl || '#'}" target="_blank" style="color:var(--accent2);font-size:12px;">${r.webUrl ? 'Open ↗' : '—'}</a></td>
       <td><button class="copy-btn" onclick="copy('${r.id}')">Copy ID</button></td>
@@ -331,9 +366,10 @@ function renderReports() {
       <thead><tr>
         <th>Report Name</th><th>Workspace</th><th>Owner</th>
         <th>Last Refreshed</th><th>Refresh Schedule</th>
+        <th style="width:70px;text-align:center;">Refresh Status</th>
         <th>Dataset</th><th>URL</th><th></th>
       </tr></thead>
-      <tbody>${rows || '<tr><td colspan="8" class="empty">No reports found</td></tr>'}</tbody>
+      <tbody>${rows || '<tr><td colspan="9" class="empty">No reports found</td></tr>'}</tbody>
     </table>`;
 }
 
@@ -456,7 +492,7 @@ function renderConnMap() {
       const type = src.datasourceType || 'Unknown';
       const key = `${type}||${cs}`;
       if (!connMap[key]) {
-        connMap[key] = { type, connectionString: cs, displayName: dn, datasets: [] };
+        connMap[key] = { type, connectionString: cs, displayName: dn, account: src.connectionDetails?.account || '—', datasets: [] };
       }
       const reports = allReports.filter(r => r.datasetId === ds.id);
       connMap[key].datasets.push({
@@ -493,14 +529,18 @@ function renderConnMap() {
 
     const cs = entry.connectionString;
     const dn = entry.displayName;
+    const account = entry.account || '—';
+    const inUse = entry.datasets.length > 0;
     const owners = [...new Set(entry.datasets.map(d => d.owner).filter(o => o !== '—'))].join(', ') || '—';
-    const searchVal = `${entry.type} ${cs} ${dn} ${owners} ${entry.datasets.map(d => d.name + ' ' + d.workspace).join(' ')}`.toLowerCase();
+    const searchVal = `${entry.type} ${cs} ${dn} ${account} ${owners} ${entry.datasets.map(d => d.name + ' ' + d.workspace).join(' ')}`.toLowerCase();
 
     return `<tr data-search="${searchVal}">
       <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${dsTypePill(entry.type)}</td>
       <td style="font-size:12px;font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${dn}">${dn}</td>
-      <td class="cell-mono" style="font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cs}">${cs}</td>
+      <td class="cell-mono" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${cs}">${cs}</td>
       <td><button class="copy-btn" onclick="copy(\`${cs.replace(/`/g, "'")}\`)">Copy</button></td>
+      <td style="font-size:12px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${account}">${account}</td>
+      <td style="text-align:center;font-size:16px;">${inUse ? '<span title="In use" style="color:#10b981;">✓</span>' : '<span title="Not in use" style="color:#ef4444;">✗</span>'}</td>
       <td><span class="pill pill-yellow">${entry.datasets.length} model${entry.datasets.length !== 1 ? 's' : ''}</span></td>
       <td><span class="pill pill-blue">${entry.datasets.reduce((a, d) => a + d.reports.length, 0)} report${entry.datasets.reduce((a, d) => a + d.reports.length, 0) !== 1 ? 's' : ''}</span></td>
       <td>
@@ -519,12 +559,71 @@ function renderConnMap() {
         <th>Display Name</th>
         <th>Connection String</th>
         <th></th>
+        <th>Account</th>
+        <th style="width:60px;text-align:center;">In Use</th>
         <th>Semantic Models</th>
         <th>Reports</th>
         <th>Details</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+function itemTypePill(t) {
+  const map = { Workspace: 'pill-yellow', Report: 'pill-blue', Dataset: 'pill-green' };
+  return `<span class="pill ${map[t] || 'pill-gray'}">${t}</span>`;
+}
+
+function rolePill(role) {
+  const r = (role || '').toLowerCase();
+  if (['admin', 'owner'].includes(r)) return `<span class="pill pill-red">${role}</span>`;
+  if (['member', 'contributor', 'readwrite'].includes(r)) return `<span class="pill pill-yellow">${role}</span>`;
+  if (['viewer', 'read', 'reshare'].includes(r)) return `<span class="pill pill-blue">${role}</span>`;
+  return `<span class="pill pill-gray">${role || '—'}</span>`;
+}
+
+function renderPermissions() {
+  const perms = allPermissions;
+  document.getElementById('permCount').textContent = perms.length;
+
+  if (perms.length === 0) {
+    document.getElementById('permTableWrap').innerHTML = '<div class="empty">No permission data found</div>';
+    return;
+  }
+
+  const rows = perms.map(p => `
+    <tr data-search="${(p.displayName + p.itemName + p.workspace + p.role + p.accessType).toLowerCase()}"
+        data-type="${(p.itemType || '').toLowerCase()}"
+        data-access="${(p.accessType || '').toLowerCase()}">
+      <td>${itemTypePill(p.itemType)}</td>
+      <td style="font-size:13px;font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.itemName}">${p.itemName}</td>
+      <td class="cell-muted" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.workspace}">${p.workspace}</td>
+      <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.displayName}">${p.displayName}</td>
+      <td><span class="pill ${p.principalType === 'Group' ? 'pill-yellow' : 'pill-gray'}">${p.principalType || 'User'}</span></td>
+      <td>${rolePill(p.role)}</td>
+      <td><span class="pill ${p.accessType === 'Group' ? 'pill-yellow' : 'pill-blue'}">${p.accessType}</span></td>
+    </tr>`).join('');
+
+  document.getElementById('permTableWrap').innerHTML = `
+    <table id="permTable">
+      <thead><tr>
+        <th style="width:90px;">Item Type</th>
+        <th>Item Name</th>
+        <th>Workspace</th>
+        <th>User / Group</th>
+        <th>Principal Type</th>
+        <th>Permission Level</th>
+        <th>Access Type</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function filterTable2(tableId, value, dataAttr) {
+  document.querySelectorAll(`#${tableId} tbody tr`).forEach(tr => {
+    if (!value) { tr.style.display = ''; return; }
+    tr.style.display = (tr.dataset[dataAttr] || '').includes(value.toLowerCase()) ? '' : 'none';
+  });
 }
 
 function populateWsFilters() {
@@ -565,7 +664,7 @@ function exportCSV(tableId, name) {
 }
 
 function disconnect() {
-  allReports = []; allDatasets = []; allWorkspaces = [];
+  allReports = []; allDatasets = []; allWorkspaces = []; allPermissions = [];
   document.getElementById('authPanel').style.display = 'block';
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('connStatus').className = 'status-badge';

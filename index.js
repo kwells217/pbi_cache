@@ -85,33 +85,77 @@ async function buildFullCatalog(token) {
 
   const workspaces = wsData.value || [];
   const connections = [...gatewayData, ...fabricData];
-  const reports = [], datasets = [];
+  const reports = [], datasets = [], permissions = [];
 
   for (const ws of workspaces) {
     try {
-      const [rData, dData] = await Promise.all([
+      const [rData, dData, wsUsers] = await Promise.all([
         pbiGet(token, `/groups/${ws.id}/reports`),
-        pbiGet(token, `/groups/${ws.id}/datasets`)
+        pbiGet(token, `/groups/${ws.id}/datasets`),
+        pbiGet(token, `/groups/${ws.id}/users`).catch(() => ({ value: [] }))
       ]);
       (rData.value || []).forEach(r => { r._workspace = ws.name; r._workspaceId = ws.id; reports.push(r); });
       (dData.value || []).forEach(d => { d._workspace = ws.name; d._workspaceId = ws.id; datasets.push(d); });
+      // Workspace-level permissions
+      (wsUsers.value || []).forEach(u => permissions.push({
+        itemType: 'Workspace',
+        itemName: ws.name,
+        itemId: ws.id,
+        workspace: ws.name,
+        identifier: u.emailAddress || u.displayName || u.identifier,
+        displayName: u.displayName || u.emailAddress || u.identifier,
+        principalType: u.principalType || 'User',
+        role: u.groupUserAccessRight || u.datasetUserAccessRight || u.reportUserAccessRight || '—',
+        accessType: u.principalType === 'Group' ? 'Group' : 'Direct'
+      }));
     } catch (e) { /* skip inaccessible */ }
   }
 
   for (const ds of datasets) {
     try {
-      const [srcData, refreshData, scheduleData] = await Promise.all([
+      const [srcData, refreshData, scheduleData, dsUsers] = await Promise.all([
         pbiGet(token, `/groups/${ds._workspaceId}/datasets/${ds.id}/datasources`),
         pbiGet(token, `/groups/${ds._workspaceId}/datasets/${ds.id}/refreshes?$top=1`).catch(() => ({ value: [] })),
-        pbiGet(token, `/groups/${ds._workspaceId}/datasets/${ds.id}/refreshSchedule`).catch(() => ({ enabled: false }))
+        pbiGet(token, `/groups/${ds._workspaceId}/datasets/${ds.id}/refreshSchedule`).catch(() => ({ enabled: false })),
+        pbiGet(token, `/groups/${ds._workspaceId}/datasets/${ds.id}/users`).catch(() => ({ value: [] }))
       ]);
       ds._sources = srcData.value || [];
       ds._lastRefresh = (refreshData.value || [])[0] || null;
       ds._schedule = scheduleData || null;
+      // Dataset-level permissions
+      (dsUsers.value || []).forEach(u => permissions.push({
+        itemType: 'Dataset',
+        itemName: ds.name,
+        itemId: ds.id,
+        workspace: ds._workspace,
+        identifier: u.emailAddress || u.displayName || u.identifier,
+        displayName: u.displayName || u.emailAddress || u.identifier,
+        principalType: u.principalType || 'User',
+        role: u.datasetUserAccessRight || '—',
+        accessType: u.principalType === 'Group' ? 'Group' : 'Direct'
+      }));
     } catch (e) { ds._sources = []; ds._lastRefresh = null; ds._schedule = null; }
   }
 
-  return { workspaces, reports, datasets, connections };
+  // Report-level permissions
+  for (const r of reports) {
+    try {
+      const rUsers = await pbiGet(token, `/groups/${r._workspaceId}/reports/${r.id}/users`);
+      (rUsers.value || []).forEach(u => permissions.push({
+        itemType: 'Report',
+        itemName: r.name,
+        itemId: r.id,
+        workspace: r._workspace,
+        identifier: u.emailAddress || u.displayName || u.identifier,
+        displayName: u.displayName || u.emailAddress || u.identifier,
+        principalType: u.principalType || 'User',
+        role: u.reportUserAccessRight || '—',
+        accessType: u.principalType === 'Group' ? 'Group' : 'Direct'
+      }));
+    } catch (e) { /* skip */ }
+  }
+
+  return { workspaces, reports, datasets, connections, permissions };
 }
 
 async function fetchGateways(token) {
